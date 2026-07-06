@@ -40,6 +40,27 @@ def load_model():
 
 
 def transcribe_chunk_whisper(chunk_path: str) -> str:
+    whisper_api_url = os.getenv("WHISPER_API_URL")
+    if whisper_api_url:
+        print(f"Offloading Whisper transcription to API: {whisper_api_url} ...")
+        try:
+            with open(chunk_path, "rb") as f:
+                files = {"file": (os.path.basename(chunk_path), f, "audio/wav")}
+                headers = {}
+                hf_token = os.getenv("HF_TOKEN")
+                if hf_token:
+                    headers["Authorization"] = f"Bearer {hf_token}"
+                response = requests.post(whisper_api_url, headers=headers, files=files, timeout=300)
+            if response.ok:
+                res_json = response.json()
+                return res_json.get("text", res_json.get("transcript", ""))
+            else:
+                print(f"Whisper API returned error {response.status_code}: {response.text}")
+                print("Falling back to local Whisper...")
+        except Exception as e:
+            print(f"Failed to call Whisper API: {e}")
+            print("Falling back to local Whisper...")
+
     model = load_model()
     result = model.transcribe(chunk_path, task="transcribe")
     return result["text"]

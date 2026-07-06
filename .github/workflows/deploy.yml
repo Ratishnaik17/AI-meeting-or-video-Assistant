@@ -1,0 +1,83 @@
+name: CI/CD Cloud Deployment
+
+on:
+  push:
+    branches:
+      - cloud-deployment
+
+jobs:
+  deploy-huggingface:
+    name: Deploy ML Service to Hugging Face Spaces
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Push ml_service to Hugging Face Spaces
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }} # e.g. "username/space-name"
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE_NAME" ]; then
+            echo "Skipping Hugging Face deployment because HF_TOKEN or HF_SPACE_NAME is not set."
+            exit 0
+          fi
+          
+          cd ml_service
+          git init
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .
+          git commit -m "Deploy Whisper ML service from GitHub Actions"
+          git remote add hf "https://x-access-token:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE_NAME"
+          git push --force hf master:main || git push --force hf main:main
+
+  deploy-aws:
+    name: Deploy Streamlit App to AWS EC2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to AWS EC2 via SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }} # e.g. "ubuntu"
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$HOST" ] || [ -z "$USER" ]; then
+            echo "Skipping AWS deployment because EC2_SSH_KEY, EC2_HOST, or EC2_USER is not set."
+            exit 0
+          fi
+
+          # Setup SSH agent
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+
+          # SSH and deploy
+          ssh -o StrictHostKeyChecking=no $USER@$HOST "
+            cd ~/AI-meeting-or-video-Assistant || {
+              git clone -b cloud-deployment https://github.com/Ratishnaik17/AI-meeting-or-video-Assistant.git ~/AI-meeting-or-video-Assistant
+              cd ~/AI-meeting-or-video-Assistant
+            }
+            
+            git fetch origin
+            git checkout cloud-deployment
+            git pull origin cloud-deployment
+            
+            # Setup virtual environment and update packages
+            if [ ! -d '.venv' ]; then
+              python3 -m venv .venv
+            fi
+            source .venv/bin/activate
+            pip install -r requirements.txt
+            
+            # Check for running streamlit and restart it
+            pgrep -f 'streamlit run app.py' | xargs -r kill
+            
+            # Start Streamlit in background
+            nohup .venv/bin/streamlit run app.py --server.port=8501 --server.address=0.0.0.0 > streamlit.log 2>&1 &
+            echo 'Streamlit restarted.'
+          "
