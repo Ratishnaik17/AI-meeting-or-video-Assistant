@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import os
 from dotenv import load_dotenv
 from utils.audio_processor import process_input
 from core.transcriber import transcribe_all
@@ -335,8 +336,32 @@ with st.sidebar:
     st.markdown('<div class="hero-sub">Meeting Intelligence</div>', unsafe_allow_html=True)
     st.markdown("---")
 
-    st.markdown('<span class="badge badge-purple">Input</span>', unsafe_allow_html=True)
-    source = st.text_input("YouTube URL or File Path", placeholder="https://youtube.com/watch?v=... or /path/to/file.mp4")
+    st.markdown("""
+    <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.25rem;">
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="#10b981" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; min-width: 22px;"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v1a7 7 0 0 1-14 0v-1"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+        <span style="font-family: 'Syne', sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--text);">Input Any Audio</span>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.8rem; line-height: 1.4;">
+        YouTube URL, MP4, MP3, WAV — paste a link or upload a file
+    </div>
+    """, unsafe_allow_html=True)
+
+    source_url = st.text_input("YouTube URL or File Path", placeholder="https://youtube.com/watch?v=... or /path/to/file.mp4", label_visibility="collapsed")
+    
+    st.markdown('<div style="text-align: center; margin: 0.4rem 0; color: var(--text-muted); font-size: 0.75rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;">— OR —</div>', unsafe_allow_html=True)
+    
+    uploaded_file = st.file_uploader("Upload an audio or video file", type=["mp4", "mp3", "wav", "webm", "m4a", "ogg"], label_visibility="collapsed")
+    
+    source = None
+    if uploaded_file is not None:
+        DOWNLOAD_DIR = 'downloades'
+        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+        saved_path = os.path.join(DOWNLOAD_DIR, uploaded_file.name)
+        with open(saved_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        source = saved_path
+    elif source_url.strip():
+        source = source_url.strip()
 
     language = st.selectbox("Language", ["english", "hinglish"], index=0)
 
@@ -362,8 +387,8 @@ st.markdown("---")
 
 # ── Run Pipeline ────────────────────────────────────────────────────────────────
 if run_btn:
-    if not source.strip():
-        st.error("Please enter a YouTube URL or file path.")
+    if not source or not str(source).strip():
+        st.error("Please enter a YouTube URL/file path or upload a file.")
     else:
         st.session_state.pipeline_done = False
         st.session_state.result = None
@@ -386,6 +411,9 @@ if run_btn:
             update_step("transcript", "active")
             transcript = transcribe_all(chunks, language)
             update_step("transcript", "done")
+
+            if not transcript or not transcript.strip():
+                raise ValueError("The transcription is empty. The input audio/video file might contain no clear speech, be silent, or have mismatched language settings.")
 
             update_step("title", "active")
             title = generate_title(transcript)
@@ -535,7 +563,7 @@ else:
             Ready to Analyse
         </div>
         <div style="color:var(--text-muted);font-size:0.85rem;max-width:380px;line-height:1.7">
-            Paste a YouTube URL or local file path in the sidebar, choose your language, and hit <strong>Analyse</strong> to get started.
+            Paste a YouTube URL/local file path or upload an audio/video file in the sidebar, choose your language, and hit <strong>Analyse</strong> to get started.
         </div>
         <div style="margin-top:2rem;display:flex;gap:1rem;flex-wrap:wrap;justify-content:center">
             <span class="badge badge-purple">Transcription</span>

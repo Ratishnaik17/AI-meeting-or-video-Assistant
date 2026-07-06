@@ -16,6 +16,8 @@ def get_embeddings():
 
 def build_vector_store(transcript : str)->Chroma:
     print("Building vector Store")
+    if not transcript or not transcript.strip():
+        raise ValueError("Cannot build vector store from an empty transcript.")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size = 500,
