@@ -13,6 +13,20 @@ SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
 SARVAM_STT_TRANSLATE_URL = "https://api.sarvam.ai/speech-to-text-translate"
 SARVAM_MODEL = os.getenv("SARVAM_STT_MODEL", "saaras:v2.5")
 
+SARVAM_LANG_MAP = {
+    "hinglish": "hi-IN",
+    "hindi": "hi-IN",
+    "bengali": "bn-IN",
+    "gujarati": "gu-IN",
+    "kannada": "kn-IN",
+    "malayalam": "ml-IN",
+    "marathi": "mr-IN",
+    "odia": "od-IN",
+    "punjabi": "pa-IN",
+    "tamil": "ta-IN",
+    "telugu": "te-IN",
+}
+
 _model = None
 
 
@@ -31,12 +45,14 @@ def transcribe_chunk_whisper(chunk_path: str) -> str:
     return result["text"]
 
 
-def _send_to_sarvam(piece_path: str) -> str:
+def _send_to_sarvam(piece_path: str, language_code: str = None) -> str:
     """Send one ≤30s WAV file to Sarvam and return the English transcript."""
     headers = {"api-subscription-key": SARVAM_API_KEY}
     with open(piece_path, "rb") as f:
         files = {"file": (os.path.basename(piece_path), f, "audio/wav")}
         data = {"model": SARVAM_MODEL, "with_diarization": "false"}
+        if language_code:
+            data["language_code"] = language_code
         response = requests.post(
             SARVAM_STT_TRANSLATE_URL,
             headers=headers,
@@ -51,7 +67,7 @@ def _send_to_sarvam(piece_path: str) -> str:
     return response.json().get("transcript", "")
 
 
-def transcribe_chunk_sarvam(chunk_path: str) -> str:
+def transcribe_chunk_sarvam(chunk_path: str, language_code: str = None) -> str:
     if not SARVAM_API_KEY:
         raise RuntimeError("SARVAM_API_KEY is not set in environment / .env")
     audio = AudioSegment.from_wav(chunk_path)
@@ -64,7 +80,7 @@ def transcribe_chunk_sarvam(chunk_path: str) -> str:
         piece.export(piece_path, format="wav")
         try:
             print(f"  → Sarvam piece {i + 1}/{total_pieces} ...")
-            full_text += _send_to_sarvam(piece_path) + " "
+            full_text += _send_to_sarvam(piece_path, language_code) + " "
         finally:
             if os.path.exists(piece_path):
                 os.remove(piece_path)
@@ -72,14 +88,16 @@ def transcribe_chunk_sarvam(chunk_path: str) -> str:
 
 
 def transcribe_chunk(chunk_path: str, language: str = "english") -> str:
-    if language.lower() == "hinglish":
-        return transcribe_chunk_sarvam(chunk_path)
+    lang_lower = language.lower()
+    if lang_lower in SARVAM_LANG_MAP:
+        return transcribe_chunk_sarvam(chunk_path, SARVAM_LANG_MAP[lang_lower])
     return transcribe_chunk_whisper(chunk_path)
 
 
 def transcribe_all(chunks: list, language: str = "english") -> str:
     full_transcript = ""
-    engine = "Sarvam AI" if language.lower() == "hinglish" else "Whisper"
+    lang_lower = language.lower()
+    engine = "Sarvam AI" if lang_lower in SARVAM_LANG_MAP else "Whisper"
     print(f"Using {engine} for transcription.")
     for i, chunk in enumerate(chunks):
         print(f"Transcribing chunk {i + 1}/{len(chunks)}...")

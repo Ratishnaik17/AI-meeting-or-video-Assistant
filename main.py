@@ -40,7 +40,7 @@ def run_pipeline(source :str, language :str = "english") -> dict:
 if __name__ == "__main__":
     # CLI entry point
     source = input("Enter YouTube URL or local file path: ").strip()
-    language = input("Language (english/hinglish): ").strip() or "english"
+    language = input("Language (english, hinglish, hindi, bengali, gujarati, kannada, malayalam, marathi, odia, punjabi, tamil, telugu): ").strip() or "english"
     result = run_pipeline(source, language)
 
     print("\n" + "=" * 60)

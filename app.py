@@ -363,7 +363,11 @@ with st.sidebar:
     elif source_url.strip():
         source = source_url.strip()
 
-    language = st.selectbox("Language", ["english", "hinglish"], index=0)
+    language = st.selectbox(
+        "Language",
+        ["English", "Hinglish", "Hindi", "Bengali", "Gujarati", "Kannada", "Malayalam", "Marathi", "Odia", "Punjabi", "Tamil", "Telugu"],
+        index=0
+    )
 
     run_btn = st.button("⚡  Analyse", use_container_width=True)
 
